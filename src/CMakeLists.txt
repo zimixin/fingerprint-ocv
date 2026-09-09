@@ -12,14 +12,15 @@ target_link_libraries(manager PUBLIC jinx jinx::usb jinx::dbus)
 # cvext
 if (DEFINED ENV{OPENCV_SDK_HOME})
 set(OpenCV_DIR $ENV{OPENCV_SDK_HOME}/lib/cmake/opencv4)
+else()
+set(OpenCV_DIR /usr/lib/cmake/opencv5)
 endif()
 
-set(OpenCV_DIR "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed/x64-linux/share/opencv4")
 find_package(OpenCV REQUIRED)
 
 add_library(cvext STATIC cvext.cpp)
 target_include_directories(cvext PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(cvext PUBLIC opencv_core opencv_imgproc opencv_features2d opencv_imgcodecs opencv_calib3d opencv_flann)
+target_link_libraries(cvext PUBLIC opencv_core opencv_imgproc opencv_features opencv_imgcodecs opencv_calib opencv_flann)
 
 if (CMAKE_BUILD_TYPE STREQUAL Debug)
 target_link_libraries(cvext PUBLIC opencv_highgui)

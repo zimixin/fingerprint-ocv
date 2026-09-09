@@ -54,7 +54,7 @@ const std::array<Argument, 6> arguments
 
 int main(int argc, const char* argv[])
 {
-    ::umask(0600);
+    ::umask(0077);
 
     openlog(argv[0], LOG_PID | LOG_NDELAY, LOG_AUTH | LOG_INFO);
     syslog(LOG_AUTH | LOG_INFO, "fingerpp starting");
