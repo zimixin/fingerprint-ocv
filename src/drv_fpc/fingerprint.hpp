@@ -108,6 +108,41 @@ public:
         return false;
     }
 
+    // Rename a stored print by moving its template to a new name. Returns
+    // false if the user/old name is missing, or if the new name is already
+    // taken (so an existing print is never silently overwritten).
+    bool rename_fingerprint(const std::string& username, const std::string& old_name, const std::string& new_name)
+    {
+        if (new_name.empty()) {
+            return false;
+        }
+        auto user = _fingerprints.find(username);
+        if (user == _fingerprints.end()) {
+            return false;
+        }
+
+        auto print = user->second.find(old_name);
+        if (print == user->second.end()) {
+            return false;
+        }
+
+        // reject a rename onto an existing print (no silent overwrite)
+        if (user->second.find(new_name) != user->second.end()) {
+            return false;
+        }
+
+        // copy the target name into a SEPARATE string for the map key, so the
+        // moved Fingerprint keeps an intact _name matching the key (sharing the
+        // same string buffer between key and value empties value._name -> the
+        // stored template ends up with a blank name).
+        std::string key = new_name;
+        Fingerprint fp = std::move(print->second);
+        fp._name = new_name;
+        user->second.erase(print);
+        user->second.emplace(std::move(key), std::move(fp));
+        return true;
+    }
+
     bool check(const std::string& username, const std::string& name)
     {
         auto user = _fingerprints.find(username);

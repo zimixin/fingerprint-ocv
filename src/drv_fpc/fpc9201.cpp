@@ -273,18 +273,22 @@ protected:
 #endif
             if (_verify) {
                 bool ret = false;
+                std::string matched_name{};
                 _storage->foreach(_fingerprint._user, [&](auto& fingerprint){
                     if (not Fingerprint::is_any(_fingerprint._name) and _fingerprint._name != fingerprint._name) {
                         return false;
                     }
                     ret = fingerprint.match(partial, GET_OPTION(float, "min-score"), GET_OPTION(bool, "filter-before-ssim"));
+                    if (ret) {
+                        matched_name = fingerprint._name;
+                    }
                     return ret; // return 'true' to break loop
                 });
 
                 std::cout << "verify " << ret << std::endl;
 
                 if (ret) {
-                    return send_signal("verify-match", TRUE);
+                    return send_signal(("verify-match:" + matched_name).c_str(), TRUE);
                 }
 
                 return send_signal("verify-retry-scan", FALSE);
@@ -506,6 +510,7 @@ public:
                 iface.add_method("DeleteEnrolledFingers", "s", "", &WorkerDevice::delete_enrolled_fingers);
                 iface.add_method("DeleteEnrolledFingers2", "", "", &WorkerDevice::delete_enrolled_fingers2);
                 iface.add_method("DeleteEnrolledFinger", "s", "", &WorkerDevice::delete_enrolled_finger);
+                iface.add_method("RenameFinger", "ss", "", &WorkerDevice::rename_finger);
 
                 iface.add_method("Claim", "s", "", &WorkerDevice::claim);
                 iface.add_method("Release", "", "", &WorkerDevice::release);
@@ -683,6 +688,7 @@ protected:
             case "VerifyStart"_hash:
             case "DeleteEnrolledFinger"_hash:
             case "DeleteEnrolledFingers2"_hash:
+            case "RenameFinger"_hash:
             case "Release"_hash:
                 return check_sender();
             default: break;
@@ -771,6 +777,41 @@ protected:
         }
         _storage->save();
         
+        AsyncDBusMessage reply{
+            dbus_message_new_method_return(msg)
+        };
+        return *this / _send_message(_connection, reply) / &WorkerDevice::run;
+    }
+
+    Async rename_finger() {
+        auto& msg = get_message();
+
+        DBusMessageIter args{};
+        if (dbus_message_iter_init(get_message(), &args) == FALSE or dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_STRING) {
+            AsyncDBusMessage reply{
+                dbus_message_new_error(get_message(), DBUS_ERROR_INVALID_ARGS, "invalid arguments")
+            };
+            return *this / _send_message(_connection, reply) / &WorkerDevice::run;
+        }
+        const char* old_name = nullptr;
+        dbus_message_iter_get_basic(&args, &old_name);
+        if (not dbus_message_iter_next(&args) or dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_STRING) {
+            AsyncDBusMessage reply{
+                dbus_message_new_error(get_message(), DBUS_ERROR_INVALID_ARGS, "invalid arguments")
+            };
+            return *this / _send_message(_connection, reply) / &WorkerDevice::run;
+        }
+        const char* new_name = nullptr;
+        dbus_message_iter_get_basic(&args, &new_name);
+
+        if (not _storage->rename_fingerprint(_claimed_user, old_name, new_name)) {
+            AsyncDBusMessage reply{
+                dbus_message_new_error(get_message(), "net.reactivated.Fprint.Error.InvalidFingername", "invalid finger name or target name in use")
+            };
+            return *this / _send_message(_connection, reply) / &WorkerDevice::run;
+        }
+        _storage->save();
+
         AsyncDBusMessage reply{
             dbus_message_new_method_return(msg)
         };
