@@ -1308,7 +1308,7 @@ protected:
             return state;
         }
 
-        if (error.category() == jinx::usb::category_transfer()) {
+        if (error.category() == jinx::usb::category_usb()) {
             if (static_cast<libusb_error>(error.value()) == LIBUSB_ERROR_NO_DEVICE) {
                 _event_queue->reset();
                 return async_return();
@@ -1602,9 +1602,17 @@ protected:
                 restart();
                 return async_return();
             }
+        } else if (error.category() == category_usb()) {
+            if (static_cast<libusb_error>(error.value()) == LIBUSB_ERROR_NO_DEVICE) {
+                restart();
+                return async_return();
+            }
         } else if (error.category() == category_transfer()) {
             if (static_cast<libusb_transfer_status>(error.value()) == LIBUSB_TRANSFER_STALL) {
                 libusb_clear_halt(_handle, _endpoint.bEndpointAddress);
+            } else if (static_cast<libusb_transfer_status>(error.value()) == LIBUSB_TRANSFER_NO_DEVICE) {
+                restart();
+                return async_return();
             }
         }
 
